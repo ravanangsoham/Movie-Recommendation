@@ -2,14 +2,13 @@ import streamlit as st
 import pandas as pd
 import os
 import random
-import numpy as np
 
 # ============================================
 # PAGE CONFIG
 # ============================================
 
 st.set_page_config(
-    page_title="CineScope India Pro",
+    page_title="🎬 CineScope India Pro",
     page_icon="🎬",
     layout="wide"
 )
@@ -21,7 +20,7 @@ st.set_page_config(
 FILE = "soham.txt"
 
 # ============================================
-# LOAD DATA
+# LOAD DATASET
 # ============================================
 
 if not os.path.exists(FILE):
@@ -29,12 +28,17 @@ if not os.path.exists(FILE):
     st.stop()
 
 try:
+
     data = pd.read_csv(
         FILE,
-        names=["Movie", "Genre", "Rating", "OTT"]
+        names=["Movie", "Genre", "Rating", "OTT"],
+        sep=",",
+        engine="python",
+        on_bad_lines="skip"
     )
 
 except Exception as e:
+
     st.error(f"❌ Dataset Error: {e}")
     st.stop()
 
@@ -54,7 +58,7 @@ data["Rating"] = pd.to_numeric(
 data = data.dropna()
 
 # ============================================
-# CSS DESIGN
+# DESIGN
 # ============================================
 
 st.markdown("""
@@ -70,12 +74,6 @@ section[data-testid="stSidebar"] {
 
 h1,h2,h3 {
     color: #1b4332;
-}
-
-[data-testid="metric-container"] {
-    background-color: white;
-    border-radius: 12px;
-    padding: 15px;
 }
 
 .stButton>button {
@@ -100,7 +98,7 @@ st.markdown(
 )
 
 # ============================================
-# SIDEBAR
+# SIDEBAR FILTERS
 # ============================================
 
 st.sidebar.title("⚙ Filters")
@@ -166,19 +164,19 @@ with col1:
 
 with col2:
     st.metric(
-        "⭐ Average Rating",
+        "⭐ Avg Rating",
         round(filtered["Rating"].mean(), 1)
         if len(filtered) > 0 else 0
     )
 
 with col3:
     st.metric(
-        "📡 Platforms",
+        "📡 OTT Platforms",
         filtered["OTT"].nunique()
     )
 
 # ============================================
-# DATA TABLE
+# DATASET
 # ============================================
 
 st.subheader("📋 Movie Dataset")
@@ -204,7 +202,7 @@ st.bar_chart(
 )
 
 # ============================================
-# GENRE ANALYSIS
+# GENRE GRAPH
 # ============================================
 
 st.subheader("🎭 Genre Distribution")
@@ -214,7 +212,7 @@ genre_count = filtered["Genre"].value_counts()
 st.bar_chart(genre_count)
 
 # ============================================
-# OTT ANALYSIS
+# OTT GRAPH
 # ============================================
 
 st.subheader("📡 OTT Platform Analysis")
@@ -259,11 +257,12 @@ for i, row in recommend.iterrows():
 
 st.subheader("🎲 Random Movie Suggestion")
 
-if st.button("Suggest Me a Movie"):
+if st.button("Suggest Movie"):
 
     movie = filtered.sample(1).iloc[0]
 
-    st.info(f"""
+    st.info(
+        f"""
 🎬 Movie: {movie['Movie']}
 
 🎭 Genre: {movie['Genre']}
@@ -271,7 +270,8 @@ if st.button("Suggest Me a Movie"):
 ⭐ Rating: {movie['Rating']}
 
 📡 OTT: {movie['OTT']}
-""")
+"""
+    )
 
 # ============================================
 # FOOTER
