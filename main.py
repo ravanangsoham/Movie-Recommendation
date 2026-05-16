@@ -1,8 +1,12 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
 import os
 import random
+import numpy as np
+
+# ============================================
+# PAGE CONFIG
+# ============================================
 
 st.set_page_config(
     page_title="CineScope India Pro",
@@ -10,156 +14,218 @@ st.set_page_config(
     layout="wide"
 )
 
+# ============================================
+# FILE
+# ============================================
+
 FILE = "soham.txt"
+
+# ============================================
+# LOAD DATA
+# ============================================
 
 if not os.path.exists(FILE):
     st.error("❌ soham.txt file not found")
     st.stop()
 
-data = pd.read_csv(
-    FILE,
-    names=["Movie", "Genre", "Rating", "OTT"]
+try:
+    data = pd.read_csv(
+        FILE,
+        names=["Movie", "Genre", "Rating", "OTT"]
+    )
+
+except Exception as e:
+    st.error(f"❌ Dataset Error: {e}")
+    st.stop()
+
+# ============================================
+# CLEAN DATA
+# ============================================
+
+data["Movie"] = data["Movie"].astype(str)
+data["Genre"] = data["Genre"].astype(str)
+data["OTT"] = data["OTT"].astype(str)
+
+data["Rating"] = pd.to_numeric(
+    data["Rating"],
+    errors="coerce"
 )
 
-data["Rating"] = pd.to_numeric(data["Rating"], errors="coerce")
 data = data.dropna()
+
+# ============================================
+# CSS DESIGN
+# ============================================
+
+st.markdown("""
+<style>
+
+.main {
+    background-color: #d8f3dc;
+}
+
+section[data-testid="stSidebar"] {
+    background-color: #95d5b2;
+}
+
+h1,h2,h3 {
+    color: #1b4332;
+}
+
+[data-testid="metric-container"] {
+    background-color: white;
+    border-radius: 12px;
+    padding: 15px;
+}
+
+.stButton>button {
+    background-color: #2d6a4f;
+    color: white;
+    border-radius: 10px;
+    border: none;
+    font-weight: bold;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+# ============================================
+# TITLE
+# ============================================
 
 st.title("🎬 CineScope India Pro")
 
-st.markdown("## Smart Movie Recommendation System")
+st.markdown(
+    "### Smart Movie Recommendation & OTT Analytics Dashboard"
+)
 
-st.sidebar.title("Filters")
+# ============================================
+# SIDEBAR
+# ============================================
 
-search = st.sidebar.text_input("Search Movie")
+st.sidebar.title("⚙ Filters")
+
+search = st.sidebar.text_input("🔍 Search Movie")
 
 genre = st.sidebar.selectbox(
-    "Genre",
+    "🎭 Genre",
     ["All"] + sorted(data["Genre"].unique())
 )
 
 ott = st.sidebar.selectbox(
-    "OTT Platform",
+    "📡 OTT Platform",
     ["All"] + sorted(data["OTT"].unique())
 )
+
+min_rating = st.sidebar.slider(
+    "⭐ Minimum Rating",
+    0.0,
+    10.0,
+    5.0
+)
+
+# ============================================
+# FILTER DATA
+# ============================================
 
 filtered = data.copy()
 
 if genre != "All":
-    filtered = filtered[filtered["Genre"] == genre]
+    filtered = filtered[
+        filtered["Genre"] == genre
+    ]
 
 if ott != "All":
-    filtered = filtered[filtered["OTT"] == ott]
+    filtered = filtered[
+        filtered["OTT"] == ott
+    ]
+
+filtered = filtered[
+    filtered["Rating"] >= min_rating
+]
 
 if search:
     filtered = filtered[
-        filtered["Movie"].str.lower().str.contains(search.lower())
+        filtered["Movie"].str.lower().str.contains(
+            search.lower(),
+            na=False
+        )
     ]
+
+# ============================================
+# METRICS
+# ============================================
 
 col1, col2, col3 = st.columns(3)
 
-col1.metric("Movies", len(filtered))
+with col1:
+    st.metric(
+        "🎬 Movies",
+        len(filtered)
+    )
 
-col2.metric(
-    "Average Rating",
-    round(filtered["Rating"].mean(), 1)
+with col2:
+    st.metric(
+        "⭐ Average Rating",
+        round(filtered["Rating"].mean(), 1)
+        if len(filtered) > 0 else 0
+    )
+
+with col3:
+    st.metric(
+        "📡 Platforms",
+        filtered["OTT"].nunique()
+    )
+
+# ============================================
+# DATA TABLE
+# ============================================
+
+st.subheader("📋 Movie Dataset")
+
+st.dataframe(
+    filtered,
+    use_container_width=True
 )
 
-col3.metric(
-    "Platforms",
-    filtered["OTT"].nunique()
-)
-
-st.subheader("Movie Dataset")
-
-st.dataframe(filtered, use_container_width=True)
-
+# ============================================
 # TOP MOVIES
+# ============================================
 
 st.subheader("🏆 Top Rated Movies")
 
-top = filtered.sort_values(
+top_movies = filtered.sort_values(
     by="Rating",
     ascending=False
 ).head(10)
 
-fig, ax = plt.subplots(figsize=(10,5))
-
-colors = plt.cm.plasma(
-    [i/len(top) for i in range(len(top))]
+st.bar_chart(
+    top_movies.set_index("Movie")["Rating"]
 )
 
-bars = ax.bar(
-    top["Movie"],
-    top["Rating"],
-    color=colors
-)
-
-for bar in bars:
-
-    h = bar.get_height()
-
-    ax.text(
-        bar.get_x()+bar.get_width()/2,
-        h+0.1,
-        str(round(h,1)),
-        ha='center'
-    )
-
-plt.xticks(rotation=20)
-
-ax.set_title("Top Rated Movies")
-
-st.pyplot(fig)
-
-# GENRE GRAPH
+# ============================================
+# GENRE ANALYSIS
+# ============================================
 
 st.subheader("🎭 Genre Distribution")
 
 genre_count = filtered["Genre"].value_counts()
 
-fig2, ax2 = plt.subplots(figsize=(10,5))
+st.bar_chart(genre_count)
 
-bars = ax2.bar(
-    genre_count.index,
-    genre_count.values,
-    color=plt.cm.Set3(range(len(genre_count)))
-)
+# ============================================
+# OTT ANALYSIS
+# ============================================
 
-for bar in bars:
-
-    h = bar.get_height()
-
-    ax2.text(
-        bar.get_x()+bar.get_width()/2,
-        h+0.2,
-        str(h),
-        ha='center'
-    )
-
-plt.xticks(rotation=20)
-
-ax2.set_title("Genre Analytics")
-
-st.pyplot(fig2)
-
-# OTT PIE CHART
-
-st.subheader("📡 OTT Analysis")
+st.subheader("📡 OTT Platform Analysis")
 
 ott_count = filtered["OTT"].value_counts()
 
-fig3, ax3 = plt.subplots(figsize=(7,7))
+st.bar_chart(ott_count)
 
-ax3.pie(
-    ott_count.values,
-    labels=ott_count.index,
-    autopct='%1.1f%%',
-    shadow=True
-)
-
-st.pyplot(fig3)
-
-# TRENDING
+# ============================================
+# TRENDING MOVIES
+# ============================================
 
 st.subheader("🔥 Trending Movies")
 
@@ -168,26 +234,51 @@ if len(filtered) >= 5:
 else:
     trending = filtered
 
-fig4, ax4 = plt.subplots(figsize=(10,5))
+st.dataframe(trending)
 
-bars = ax4.barh(
-    trending["Movie"],
-    trending["Rating"],
-    color=plt.cm.viridis(
-        [i/len(trending) for i in range(len(trending))]
+# ============================================
+# RECOMMENDATIONS
+# ============================================
+
+st.subheader("💡 Smart Recommendations")
+
+recommend = filtered.sort_values(
+    by="Rating",
+    ascending=False
+).head(5)
+
+for i, row in recommend.iterrows():
+
+    st.success(
+        f"🎬 {row['Movie']} | ⭐ {row['Rating']} | 📡 {row['OTT']}"
     )
-)
 
-st.pyplot(fig4)
-
+# ============================================
 # RANDOM MOVIE
+# ============================================
 
-st.subheader("🎲 Random Recommendation")
+st.subheader("🎲 Random Movie Suggestion")
 
-if st.button("Suggest Movie"):
+if st.button("Suggest Me a Movie"):
 
     movie = filtered.sample(1).iloc[0]
 
-    st.success(
-        f"{movie['Movie']} | ⭐ {movie['Rating']} | 📡 {movie['OTT']}"
-    )
+    st.info(f"""
+🎬 Movie: {movie['Movie']}
+
+🎭 Genre: {movie['Genre']}
+
+⭐ Rating: {movie['Rating']}
+
+📡 OTT: {movie['OTT']}
+""")
+
+# ============================================
+# FOOTER
+# ============================================
+
+st.markdown("---")
+
+st.markdown(
+    "## ✅ Developed using Streamlit & Pandas"
+)
